@@ -1,5 +1,4 @@
-{
-  "name": "task-manager-productivity-dashboard",
+{ "name": "task-manager-productivity-dashboard",
   "version": "1.0.0",
   "private": true,
   "type": "module",
