@@ -35,7 +35,14 @@ export const combineDueDateTime = (dueDate, dueTime) => {
     return null;
   }
 
-  return new Date(`${dueDate}T${dueTime}:00`);
+  const [year, month, day] = dueDate.split("-").map(Number);
+  const [hour, minute] = dueTime.split(":").map(Number);
+
+  if ([year, month, day, hour, minute].some((value) => Number.isNaN(value))) {
+    return null;
+  }
+
+  return new Date(year, month - 1, day, hour, minute, 0);
 };
 
 export const getReminderDate = (dueDate, dueTime, minutesBefore) => {
