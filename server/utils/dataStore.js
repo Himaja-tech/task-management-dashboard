@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 import Notification from "../models/Notification.js";
 import Task from "../models/Task.js";
 import User from "../models/User.js";
+import { normalizeIsoDatetimeString } from "./time.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -41,7 +42,25 @@ export const loadFileStore = async () => {
 
     reviveDates(memory.users, ["createdAt", "updatedAt"]);
     reviveDates(memory.tasks, ["dueDate", "reminderTime", "completedAt", "createdAt", "updatedAt"]);
-    reviveDates(memory.notifications, ["scheduledTime", "sentAt", "createdAt", "updatedAt"]);
+    reviveDates(memory.notifications, ["sentAt", "createdAt", "updatedAt"]);
+
+    memory.notifications = memory.notifications.map((notification) => {
+      if (typeof notification.scheduledTime === "string") {
+        try {
+          const normalizedScheduledTime = normalizeIsoDatetimeString(notification.scheduledTime);
+          return { ...notification, scheduledTime: normalizedScheduledTime };
+        } catch (error) {
+          console.warn(`Invalid stored scheduledTime ignored: ${notification.scheduledTime}`);
+          return notification;
+        }
+      }
+
+      if (notification.scheduledTime instanceof Date) {
+        return { ...notification, scheduledTime: notification.scheduledTime.toISOString() };
+      }
+
+      return notification;
+    });
   } catch (error) {
     if (error.code !== "ENOENT") {
       console.warn(`Unable to load local data store: ${error.message}`);
@@ -361,8 +380,10 @@ export const store = {
   },
 
   async createNotification(payload) {
+    const scheduledTime = normalizeIsoDatetimeString(payload.scheduledTime);
+
     if (storageMode === "mongo") {
-      return toPlain(await Notification.create(payload));
+      return toPlain(await Notification.create({ ...payload, scheduledTime }));
     }
 
     const now = new Date();
@@ -373,7 +394,7 @@ export const store = {
       createdAt: now,
       updatedAt: now,
       ...payload,
-      scheduledTime: new Date(payload.scheduledTime)
+      scheduledTime
     };
     memory.notifications.unshift(notification);
     await saveFileStore();
@@ -399,7 +420,11 @@ export const store = {
     }
 
     const dueNotifications = memory.notifications
-      .filter((notification) => notification.userId === userId && !notification.sentAt && notification.scheduledTime <= now)
+      .filter((notification) => notification.userId === userId && !notification.sentAt)
+      .filter((notification) => {
+        const scheduled = new Date(notification.scheduledTime).getTime();
+        return !Number.isNaN(scheduled) && scheduled <= now.getTime();
+      })
       .map((notification) => {
         notification.sentAt = now;
         notification.updatedAt = now;
@@ -431,7 +456,11 @@ export const store = {
     }
 
     const dueNotifications = memory.notifications
-      .filter((notification) => !notification.sentAt && notification.scheduledTime <= now)
+      .filter((notification) => !notification.sentAt)
+      .filter((notification) => {
+        const scheduled = new Date(notification.scheduledTime).getTime();
+        return !Number.isNaN(scheduled) && scheduled <= now.getTime();
+      })
       .map((notification) => {
         notification.sentAt = now;
         notification.updatedAt = now;
@@ -451,9 +480,11 @@ export const store = {
       return docs.map(toPlain);
     }
 
+    const scheduledTimeValue = (item) => new Date(item.scheduledTime).getTime() || 0;
+
     return memory.notifications
       .filter((notification) => notification.userId === userId)
-      .sort((a, b) => new Date(b.scheduledTime) - new Date(a.scheduledTime) || new Date(b.createdAt) - new Date(a.createdAt))
+      .sort((a, b) => scheduledTimeValue(b) - scheduledTimeValue(a) || new Date(b.createdAt) - new Date(a.createdAt))
       .slice(0, 80);
   },
 

@@ -1,3 +1,35 @@
+const ISO_DATETIME_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/;
+
+export const isValidIsoDatetimeString = (value) => {
+  if (typeof value !== "string") {
+    return false;
+  }
+
+  if (!ISO_DATETIME_REGEX.test(value)) {
+    return false;
+  }
+
+  return !Number.isNaN(new Date(value).getTime());
+};
+
+export const normalizeIsoDatetimeString = (value) => {
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) {
+      throw new Error("Invalid Date object provided for scheduledTime.");
+    }
+    return value.toISOString();
+  }
+
+  if (typeof value === "string") {
+    if (!isValidIsoDatetimeString(value)) {
+      throw new Error("scheduledTime must be a valid ISO 8601 datetime string like YYYY-MM-DDTHH:mm:ssZ.");
+    }
+    return new Date(value).toISOString();
+  }
+
+  throw new Error("scheduledTime must be an ISO 8601 datetime string.");
+};
+
 export const combineDueDateTime = (dueDate, dueTime) => {
   if (!dueDate || !dueTime) {
     return null;

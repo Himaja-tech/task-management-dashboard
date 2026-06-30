@@ -2,6 +2,19 @@ import { store } from "../utils/dataStore.js";
 import { deliverReminderEmails } from "../utils/deliverNotifications.js";
 import { getReminderDate } from "../utils/time.js";
 
+const normalizeReminderMinutes = (value) => {
+  if (value === "" || value === null || value === undefined) {
+    return null;
+  }
+
+  const normalized = Number(value);
+  if (Number.isNaN(normalized)) {
+    throw new Error("Invalid reminderMinutesBefore: must be a number of minutes before the due time.");
+  }
+
+  return normalized;
+};
+
 export const getNotifications = async (req, res, next) => {
   try {
     const dueNotifications = await store.markDueNotificationsSent(req.user._id, new Date());
@@ -43,6 +56,10 @@ export const scheduleNotification = async (req, res, next) => {
 
     await store.updateTask(req.user._id, task._id, { reminderTime, reminderMinutesBefore: normalizedReminderMinutes });
     await store.deleteNotifications({ userId: req.user._id, taskId: task._id, pendingOnly: true });
+
+    if (normalizedReminderMinutes !== null && !reminderTime) {
+      throw new Error("Unable to compute reminder time. Check task due date, due time, and reminder minutes.");
+    }
 
     if (!reminderTime) {
       return res.json({ notification: null });

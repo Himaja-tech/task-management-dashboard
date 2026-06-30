@@ -6,7 +6,12 @@ const normalizeReminderMinutes = (value) => {
     return null;
   }
 
-  return Number(value);
+  const normalized = Number(value);
+  if (Number.isNaN(normalized)) {
+    throw new Error("Invalid reminderMinutesBefore: must be a number of minutes before the due time.");
+  }
+
+  return normalized;
 };
 
 const createOrUpdateReminder = async (task, userId) => {
@@ -44,6 +49,10 @@ export const createTask = async (req, res, next) => {
     const { title, notes, priority, category, dueDate, dueTime, reminderMinutesBefore } = req.body;
     const normalizedReminderMinutes = normalizeReminderMinutes(reminderMinutesBefore);
     const reminderTime = getReminderDate(dueDate, dueTime, normalizedReminderMinutes);
+
+    if (normalizedReminderMinutes !== null && !reminderTime) {
+      throw new Error("Unable to compute reminder time. Check due date, due time, and reminder minutes.");
+    }
 
     const task = await store.createTask({
       userId: req.user._id,
@@ -106,6 +115,11 @@ export const updateTask = async (req, res, next) => {
     };
 
     const task = await store.updateTask(req.user._id, req.params.id, updates);
+
+    if (normalizedReminderMinutes !== null && !updates.reminderTime) {
+      throw new Error("Unable to compute reminder time. Check due date, due time, and reminder minutes.");
+    }
+
     await createOrUpdateReminder(task, req.user._id);
 
     res.json({ task: enrichTask(task) });
