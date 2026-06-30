@@ -44,23 +44,25 @@ export const loadFileStore = async () => {
     reviveDates(memory.tasks, ["dueDate", "reminderTime", "completedAt", "createdAt", "updatedAt"]);
     reviveDates(memory.notifications, ["sentAt", "createdAt", "updatedAt"]);
 
-    memory.notifications = memory.notifications.map((notification) => {
-      if (typeof notification.scheduledTime === "string") {
-        try {
+    memory.notifications = memory.notifications.reduce((acc, notification) => {
+      try {
+        if (typeof notification.scheduledTime === "string") {
           const normalizedScheduledTime = normalizeIsoDatetimeString(notification.scheduledTime);
-          return { ...notification, scheduledTime: normalizedScheduledTime };
-        } catch (error) {
-          console.warn(`Invalid stored scheduledTime ignored: ${notification.scheduledTime}`);
-          return notification;
+          acc.push({ ...notification, scheduledTime: normalizedScheduledTime });
+          return acc;
         }
-      }
 
-      if (notification.scheduledTime instanceof Date) {
-        return { ...notification, scheduledTime: notification.scheduledTime.toISOString() };
-      }
+        if (notification.scheduledTime instanceof Date) {
+          acc.push({ ...notification, scheduledTime: notification.scheduledTime.toISOString() });
+          return acc;
+        }
 
-      return notification;
-    });
+        throw new Error("Missing or invalid scheduledTime");
+      } catch (error) {
+        console.warn(`Invalid stored notification removed: ${notification._id} (${notification.scheduledTime})`);
+        return acc;
+      }
+    }, []);
   } catch (error) {
     if (error.code !== "ENOENT") {
       console.warn(`Unable to load local data store: ${error.message}`);

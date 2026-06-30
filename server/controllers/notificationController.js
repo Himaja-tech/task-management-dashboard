@@ -51,15 +51,15 @@ export const scheduleNotification = async (req, res, next) => {
     }
 
     const dueDate = new Date(task.dueDate).toISOString().slice(0, 10);
-    const reminderTime = getReminderDate(dueDate, task.dueTime, reminderMinutesBefore);
-    const normalizedReminderMinutes = reminderMinutesBefore === "" || reminderMinutesBefore === null || reminderMinutesBefore === undefined ? null : Number(reminderMinutesBefore);
+    const normalizedReminderMinutes = normalizeReminderMinutes(reminderMinutesBefore);
+    const reminderTime = getReminderDate(dueDate, task.dueTime, normalizedReminderMinutes);
+
+    if (normalizedReminderMinutes !== null && !reminderTime) {
+      return res.status(400).json({ message: "Unable to compute reminder time. Check task due date, due time, and reminder minutes." });
+    }
 
     await store.updateTask(req.user._id, task._id, { reminderTime, reminderMinutesBefore: normalizedReminderMinutes });
     await store.deleteNotifications({ userId: req.user._id, taskId: task._id, pendingOnly: true });
-
-    if (normalizedReminderMinutes !== null && !reminderTime) {
-      throw new Error("Unable to compute reminder time. Check task due date, due time, and reminder minutes.");
-    }
 
     if (!reminderTime) {
       return res.json({ notification: null });

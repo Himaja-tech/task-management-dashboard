@@ -101,6 +101,11 @@ export const updateTask = async (req, res, next) => {
     const nextDueTime = dueTime || existingTask.dueTime;
     const nextStatus = status ?? existingTask.status;
     const normalizedReminderMinutes = normalizeReminderMinutes(reminderMinutesBefore);
+    const reminderTime = getReminderDate(nextDueDate, nextDueTime, normalizedReminderMinutes);
+    if (normalizedReminderMinutes !== null && !reminderTime) {
+      throw new Error("Unable to compute reminder time. Check due date, due time, and reminder minutes.");
+    }
+
     const updates = {
       title: title ?? existingTask.title,
       notes: notes ?? existingTask.notes,
@@ -110,16 +115,11 @@ export const updateTask = async (req, res, next) => {
       dueTime: dueTime ?? existingTask.dueTime,
       status: nextStatus,
       completedAt: nextStatus === "completed" ? existingTask.completedAt || new Date() : null,
-      reminderTime: getReminderDate(nextDueDate, nextDueTime, normalizedReminderMinutes),
+      reminderTime,
       reminderMinutesBefore: normalizedReminderMinutes
     };
 
     const task = await store.updateTask(req.user._id, req.params.id, updates);
-
-    if (normalizedReminderMinutes !== null && !updates.reminderTime) {
-      throw new Error("Unable to compute reminder time. Check due date, due time, and reminder minutes.");
-    }
-
     await createOrUpdateReminder(task, req.user._id);
 
     res.json({ task: enrichTask(task) });
